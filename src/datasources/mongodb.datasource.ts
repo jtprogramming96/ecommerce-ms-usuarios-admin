@@ -4,12 +4,12 @@ import {juggler} from '@loopback/repository';
 const config = {
   name: 'mongodb',
   connector: 'mongodb',
-  url: 'mongodb+srv://ecommerce_user:t37NYyW1aYGvuBSx@cluster0.h1h2xil.mongodb.net/ecommerce_DB?retryWrites=true&w=majority',
+  url: 'mongodb+srv://ecommerce_user:t37NYyW1aYGvuBSx@cluster0.h1h2xil.mongodb.net/usuariosAdmin_ecommerce_db?retryWrites=true&w=majority',
   host: 'localhost',
   port: 27017,
   user: '',
   password: '',
-  database: 'ecommerce_DB',
+  database: '',
   useNewUrlParser: true
 };
 

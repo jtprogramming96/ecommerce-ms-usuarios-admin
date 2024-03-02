@@ -16,24 +16,7 @@ export class AdministradorClavesService {
    * Add service methods here
    */
 
-  async RecuperarClave(correo: string): Promise<Usuario | null> {
-    let usuario = await this.usuarioRepository.findOne({
-      where: {
-        correo: correo
-      }
-    });
-    if (usuario) {  // refactorizar con clauseGuard
-      let clave = this.CrearClaveAleatoria();
-      usuario.clave = this.CifrarTexto(clave);
-      await this.usuarioRepository.updateById(usuario._id, usuario);
-      // notificar la nueva contraseña por correo
-      return usuario;
-    } else {
-      return null;
-    }
-  }
-
-  async CambiarClave(credencialesClave: CambioClave): Promise<Boolean> {
+  async CambiarClave(credencialesClave: CambioClave): Promise<Usuario | null> {
     let usuario = await this.usuarioRepository.findOne({
       where: {
         _id: credencialesClave.id_usuario,
@@ -43,9 +26,9 @@ export class AdministradorClavesService {
     if (usuario) {  // refactorizar con clauseGuard
       usuario.clave = credencialesClave.nueva_clave;
       await this.usuarioRepository.updateById(credencialesClave.id_usuario, usuario);
-      return true;
+      return usuario;
     } else {
-      return false;
+      return null;
     }
   }
 

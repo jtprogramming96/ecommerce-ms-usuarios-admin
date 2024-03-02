@@ -18,16 +18,21 @@ import {
   requestBody,
   response,
 } from '@loopback/rest';
-import {CambioClave, Credenciales, Usuario} from '../models';
+import {Configuracion} from '../llaves/configuracion';
+import {CambioClave, Credenciales, CredencialesRecuperarClave, NotificacionCorreo, NotificacionSms, Usuario} from '../models';
 import {UsuarioRepository} from '../repositories';
-import {AdministradorClavesService} from '../services';
+import {AdministradorClavesService, NotificacionesService, SesionUsuariosService} from '../services';
 
 export class UsuarioController {
   constructor(
     @repository(UsuarioRepository)
     public usuarioRepository: UsuarioRepository,
     @service(AdministradorClavesService)
-    public servicioClaves: AdministradorClavesService
+    public servicioClaves: AdministradorClavesService,
+    @service(NotificacionesService)
+    public servicioNotificaciones: NotificacionesService,
+    @service(SesionUsuariosService)
+    public servicioSesionUsuario: SesionUsuariosService
   ) { }
 
   @post('/usuarios')
@@ -54,7 +59,11 @@ export class UsuarioController {
     usuario.clave = claveCifrada;
     let usuarioCreado = await this.usuarioRepository.create(usuario);
     if (usuarioCreado) {
-      // Enviar clave por email
+      let datos = new NotificacionCorreo();
+      datos.destinatario = usuario.correo;
+      datos.asunto = Configuracion.asuntoCreacionUsuario;
+      datos.mensaje = `${Configuracion.saludo} ${usuario.nombre}<br/>${Configuracion.mensajeCreacionUsuario} ${clave}` // string template
+      this.servicioNotificaciones.EnviarCorreo(datos);
     }
     return usuarioCreado;
   }
@@ -162,6 +171,8 @@ export class UsuarioController {
 
   // Métodos adicionales
 
+  // Provee una nueva clave al usuario al que pertenecen las credenciales dadas. La nueva clave
+  // es notificada al usuario mediante mensaje de texto al número que nos proveyó al crear su cuenta.
   @post('/recuperar-clave')
   @response(200, {
     description: 'Recuperar clave de usuarios',
@@ -175,15 +186,29 @@ export class UsuarioController {
         },
       },
     })
-    correo: string,
+    credenciales: CredencialesRecuperarClave,
   ): Promise<Usuario | null> {
-    let usuario = await this.servicioClaves.RecuperarClave(correo);
+    let usuario = await this.usuarioRepository.findOne({
+      where: {
+        correo: credenciales.correo
+      }
+    });
     if (usuario) {
-      // Invocar al servicio de notificaciones para enviar correo al usuario con la nueva clave
+      let clave = this.servicioClaves.CrearClaveAleatoria();
+      console.log(clave);
+      let claveCifrada = this.servicioClaves.CifrarTexto(clave);
+      usuario.clave = this.servicioClaves.CifrarTexto(clave);
+      await this.usuarioRepository.updateById(usuario._id, usuario);
+      let datos = new NotificacionSms();
+      datos.destino = usuario.celular;
+      datos.mensaje = `${Configuracion.saludo} ${usuario.nombre} <br />${Configuracion.mensajeRecuperarClave} ${clave}`;
+      this.servicioNotificaciones.EnviarSms(datos);
     }
     return usuario;
   }
 
+  // Dadas las credenciales, se le cambia al usuario dado la clave actual una nueva. Dicho cambio es notificado
+  // al usuario vía correo electrónico.
   @post('/cambiar-clave')
   @response(200, {
     description: 'Cambio de clave de usuarios',
@@ -201,14 +226,18 @@ export class UsuarioController {
     })
     credencialesClave: CambioClave,
   ): Promise<Boolean> {
-    let respuesta = await this.servicioClaves.CambiarClave(credencialesClave);
-    if (respuesta) {
-      // Invocar al servicio de notificaciones para enviar correo al usuario
+    let usuario = await this.servicioClaves.CambiarClave(credencialesClave);
+    if (usuario) {
+      let datos = new NotificacionCorreo();
+      datos.destinatario = usuario.correo;
+      datos.asunto = Configuracion.asuntoCambioClave;
+      datos.mensaje = `${Configuracion.saludo} ${usuario.nombre} <br />${Configuracion.mensajeCambioClave}`; // string template
+      this.servicioNotificaciones.EnviarCorreo(datos);
     }
-    return respuesta;
+    return usuario != null;
   }
 
-  @post('/identificar-usuarios')
+  @post('/identificar-usuario')
   @response(200, {
     description: 'Identificación de usuarios',
     content: {'application/json': {schema: getModelSchemaRef(Credenciales)}},
@@ -224,17 +253,19 @@ export class UsuarioController {
       },
     })
     credenciales: Credenciales,
-  ): Promise<Usuario | null> {
-    let usuario = await this.usuarioRepository.findOne({
-      where: {
-        correo: credenciales.usuario,
-        clave: credenciales.clave
-      }
-    });
+  ): Promise<Object | null> {
+    let usuario = await this.servicioSesionUsuario.IdentificarUsuario(credenciales);
+    let tk = "";
+
     if (usuario) {
-      // generar token y agregarlo a la respuesta
+      usuario.clave = ''; // protegemos la clave del usuario. la variable "usuario" es una copia de los datos del usuario mapeados desde la db,
+      // por lo tanto, se modifica la clave del usuario localmente, NO en la bd
+      tk = await this.servicioSesionUsuario.GenerarToken(usuario);// generar token y agregarlo a la respuesta
     }
-    return usuario;
+    return {
+      token: tk,
+      usuario: usuario
+    };
   }
 
 

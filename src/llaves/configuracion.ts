@@ -13,7 +13,9 @@ export namespace Configuracion {
   export const mensajeArg = "mensaje";
   export const hashArg = "hash";
   export const url_crear_token = "http://localhost:5001/crear-token";
+  export const url_verificar_token = "http://localhost:5001/verificar-token";
   export const arg_nombre = "nombre";
   export const arg_id_persona = "id";
   export const arg_rol = "id_rol";
+  export const arg_token = "token";
 }

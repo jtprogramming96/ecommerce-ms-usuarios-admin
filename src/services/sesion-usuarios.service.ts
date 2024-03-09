@@ -39,4 +39,16 @@ export class SesionUsuariosService {
       });
     return token;
   }
+
+  async VerificarToken(tk: string): Promise<boolean> {
+    let url = `${Configuracion.url_verificar_token}?`
+      + `${Configuracion.arg_token}=${tk}`;
+    let resp = "";
+
+    await fetch(url)
+      .then(async (res: any) => {
+        resp = await res.text();
+      });
+    return resp == "OK";
+  }
 }
